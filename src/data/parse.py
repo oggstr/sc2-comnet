@@ -1,16 +1,12 @@
 from typing import Literal
+from dataclasses import dataclass
 
 import os
 import json
 
-from dataclasses import dataclass
-
-
-#Which player won given simulation
-PLAYER_A = 1.0
-PLAYER_B = 0.0
-TIE = 0.5
-
+# Which player won given simulation
+PLAYER_A = 1
+PLAYER_B = 0
 
 @dataclass
 class Result:
@@ -18,7 +14,7 @@ class Result:
     """
     units_a: dict[int, int]
     units_b: dict[int, int]
-    win: Literal[1, 2, 3]
+    win: Literal[0, 1]
 
     def get_a(self, id: int) -> int:
         return self.units_a[id] if id in self.units_a else 0
@@ -47,7 +43,7 @@ def file_list() -> list[str]:
     Returns:
         list[str]: List files
     """
-    return [f"./data/{file}" for file in os.listdir("./data")]
+    return [f"./data-set/{file}" for file in os.listdir("./data-")]
 
 def result(content: dict) -> Result:
     """Create result object from JSON content
@@ -63,7 +59,7 @@ def result(content: dict) -> Result:
 
     units_a = {}
     units_b = {}
-    win = TIE
+    win = None
 
     for unit in player_a:
         units_a[unit["UID"]] = unit["QTY"]
@@ -76,6 +72,9 @@ def result(content: dict) -> Result:
         win = PLAYER_A
     if res == "p2_win":
         win = PLAYER_B
+
+    if win is None:
+        raise Exception("Bad match resulted in tie")
 
     return Result(units_a, units_b, win)
 
