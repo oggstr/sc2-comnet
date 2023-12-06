@@ -1,23 +1,18 @@
 import unit.ids as ids
-"""
-To pack data into arrays, we need to convert
-unit IDs to indices. This module handles that.
 
-First register a set of units by name. Then fetch
-their respective indices via helper methods.
+""" Unit id system
+
+Make it easy to convert between unit ids and unit names.
+Requires that a unit is registered.
+
+Doubles as a bit of a sanity check.
 """
 
 # Count of registered units
-__count__ = 0
+# __count = 0
 
-# Tracks id -> index
-__ID_2_IDX__ = {}
-
-# Tacks index -> id
-__IDX_2_ID__ = {}
-
-# Tracks index -> unit name
-__NAME__    = {}
+# Tracks id -> name
+ID_2_NAME = {}
 
 def register(name: str) -> int:
     """Register some unit to be used
@@ -26,78 +21,42 @@ def register(name: str) -> int:
         name (str): Name of unit
 
         Returns:
-            int: index
+            int: id
     """
-    global __count__
-
     try:
-        id = getattr(ids, name)
+        unit_id = getattr(ids, name)
+        ID_2_NAME[unit_id] = name
+        return unit_id
     except AttributeError as e:
-        print(e)
-        exit(1)
+        raise Exception(f"Unit {name} does not exist, double check your spelling")
 
-    i = __count__
-
-    __ID_2_IDX__[id] = i
-    __IDX_2_ID__[i]  = id
-
-    __NAME__[i] = name
-
-    __count__ = i + 1
-    return i
-
-def index(id: int) -> int:
-    """Convert unit id to index
+def name_of(unit_id: int | str) -> str:
+    """Get unit name of some id
 
     Args:
-        id (int): unit it
-
-    Returns:
-        int: index
-    """
-
-    try:
-        return __ID_2_IDX__[id]
-    except KeyError:
-        print(f"Unit id {id} not registered in type_id module")
-        exit(1)
-
-def id(index: int) -> int:
-    """Convert index to unit id
-
-    Args:
-        index (int): index
-
-    Returns:
-        int: unit id
-    """
-
-    try:
-        return __IDX_2_ID__[index]
-    except KeyError:
-        print(f"Index {index} doesn't exist, make sure all units are registered")
-        exit(1)
-
-def count() -> int:
-    """Get count of registered units
-
-    Returns:
-        int: count
-    """
-
-    return __count__
-
-def name(index: int) -> str:
-    """Get unit name of some index
-
-    Args:
-        index (int): index
+        index (int): id
 
     Returns:
         str: unit name
     """
-    try:
-        return __NAME__[index]
-    except KeyError:
-        print(f"Index {index} doesn't exist, make sure all units are registered")
-        exit(1)
+    if type(unit_id) == str and not unit_id.isdecimal():
+        raise Exception(f"Unable to find name of id {unit_id}")
+
+    unit_id = int(unit_id)
+
+    if unit_id in ID_2_NAME:
+        return ID_2_NAME[unit_id]
+
+    for name in dir(ids):
+        if getattr(ids, name) == unit_id:
+            ID_2_NAME[unit_id] = name
+            return name
+
+    raise Exception(f"Unable to get name of id {unit_id}")
+
+def id_of(unit_name: str) -> int:
+    for attr in dir(ids):
+        if attr == unit_name:
+            return getattr(ids, attr)
+
+    raise Exception(f"Unable to find name of unit {unit_name}")    

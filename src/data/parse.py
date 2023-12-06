@@ -16,11 +16,11 @@ class Result:
     units_b: dict[int, int]
     win: Literal[0, 1]
 
-    def get_a(self, id: int) -> int:
-        return self.units_a[id] if id in self.units_a else 0
+    def get_a(self, unit_id: int) -> int:
+        return self.units_a[unit_id] if unit_id in self.units_a else 0
 
-    def get_b(self, id: int) -> int:
-        return self.units_a[id] if id in self.units_a else 0
+    def get_b(self, unit_id: int) -> int:
+        return self.units_a[unit_id] if unit_id in self.units_a else 0
 
 def parse() -> list[Result]:
     """Parse all json files in /data
@@ -43,7 +43,7 @@ def file_list() -> list[str]:
     Returns:
         list[str]: List files
     """
-    return [f"./data-set/{file}" for file in os.listdir("./data-")]
+    return [f"./data-set/{file}" for file in os.listdir("./data-set")]
 
 def result(content: dict) -> Result:
     """Create result object from JSON content
