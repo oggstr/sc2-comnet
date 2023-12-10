@@ -3,6 +3,9 @@ from dataclasses import dataclass
 
 import os
 import json
+from pathlib import Path
+
+import unit.type_id as tid
 
 # Which player won given simulation
 PLAYER_A = 1
@@ -16,10 +19,12 @@ class Result:
     units_b: dict[int, int]
     win: Literal[0, 1]
 
-    def get_a(self, unit_id: int) -> int:
+    def get_a(self, unit_name: str) -> int:
+        unit_id = tid.id_of(unit_name)
         return self.units_a[unit_id] if unit_id in self.units_a else 0
 
-    def get_b(self, unit_id: int) -> int:
+    def get_b(self, unit_name: str) -> int:
+        unit_id = tid.id_of(unit_name)
         return self.units_a[unit_id] if unit_id in self.units_a else 0
 
 def parse() -> list[Result]:
@@ -43,7 +48,8 @@ def file_list() -> list[str]:
     Returns:
         list[str]: List files
     """
-    return [f"./data-set/{file}" for file in os.listdir("./data-set")]
+    path = Path(__file__).parent.resolve()
+    return [f"{path}/../data-set/{file}" for file in os.listdir(f"{path}/../data-set")]
 
 def result(content: dict) -> Result:
     """Create result object from JSON content

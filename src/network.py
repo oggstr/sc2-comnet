@@ -1,15 +1,18 @@
 from __future__ import annotations
-from typing import Literal
+from typing import Literal, Generator
 
 import regex
+from contextlib import contextmanager
 from pandas import DataFrame
 
-import data.parse as data
+import data.parse as sim_data
 import unit.type_id as tid
 import unit.attribute as attr
 
 Player  = Literal['a', 'b']
 Feature = tuple[str, str]
+Edge    = tuple[str, str]
+Column  = str
 
 class Network():
 
@@ -41,76 +44,46 @@ class Network():
         self.features.append((offensive, defensive))
         return self
 
-    def make_data_frame(self: Network) -> DataFrame:
+    def make_network(self: Network) -> tuple[DataFrame, list[Edge], list[Column]]:
+        """Create the network.
+        This involves parsing data and computing additional data.
+        Returns a data frame, list of edges, and a list of continuos columns.
+
+        Args:
+            self (Network): _description_
+
+        Returns:
+            tuple[DataFrame, list[Edge], list[Column]]: Data frame, edges, and continuos columns.
+        """
         unit_plates, agg_plates = self.__make_plates()
 
-        data_frame = Network.__collect_columns(unit_plates, agg_plates)
-        matches = data.parse()
-
+        data = Data(unit_plates, agg_plates)
+        matches = sim_data.parse()
         for m in matches:
-            for unit_plate in unit_plates:
-                for name in unit_plate.get_node_names():
+            for _ in data.features():
+                for u in data.units():
+                    data.add_unit_count(m.get_a(u), m.get_b(u))
+                    data.add_unit_off(attr.get(u, "dmg"))
+                    data.add_unit_def(attr.get(u, "hp"))
 
-                    unit, feat, player = UnitPlate.decompose_name(name)
-                    if feat == "count":
-                        val = m.get_a(tid.id_of(unit)) if player == "player_A" else m.get_b(unit)
-                    else:
-                        val = attr.get(unit, feat)
+            data.add_match_result(m.win)
 
-                    data_frame[name].append(val)
+        return DataFrame(data.get_raw_data()), data.get_edges(), data.get_continuos_columns()
 
-            for agg_plate in agg_plates:
-                for name in agg_plate.get_node_names():
-                    feat, player = AggregationPlate.decompose_name(name)
+    def __make_plates(self: Network) -> tuple[list[UnitPlate], list[AggregationPlate]]:
+        """Create all plates in network.
+        Plate is a set of nodes.
 
-                    total = 0
-                    for unit in self.units:
-                        unit  = tid.name_of(unit)
+        Args:
+            self (Network): Self
 
-                        count = f"{unit}-count-{player}"
-                        val   = f"{unit}-{feat}-{player}"
-
-                        total += data_frame[val][-1] * data_frame[count][-1]
-
-                    data_frame[name].append(total)
-
-                agg_name = agg_plate.get_aggregation_node_name()
-                feat_off, feat_def = AggregationPlate.decompose_name(agg_name)
-                a1 = f"agg-{feat_off}-player_A"
-                a2 = f"agg-{feat_def}-player_A"
-                b1 = f"agg-{feat_off}-player_B"
-                b2 = f"agg-{feat_def}-player_B"
-
-
-                print(data_frame)
-                data_frame[agg_name].append((data_frame[a1][-1] / data_frame[b2][-1]) - (data_frame[b1][-1] / data_frame[a2][-1]))
-
-            data_frame["result"].append(m.win)
-
-        return DataFrame(data_frame)
-
-    def __make_plates(self: Network):
+        Returns:
+            tuple[list[UnitPlate], list[AggregationPlate]]: Unit and aggregation plates,
+        """
         unit_plates = [UnitPlate(tid.name_of(u), self.features) for u in self.units]
         agg_plates  = [AggregationPlate(f) for f in self.features]
 
         return (unit_plates, agg_plates)
-
-    def __collect_columns(unit_plates: list[UnitPlate], agg_plates: list[AggregationPlate]) -> dict[str, list]:
-        cols = {}
-        for unit in unit_plates:
-            for n in unit.get_node_names():
-                cols[n] = []
-
-        for agg in agg_plates:
-            for n in agg.get_node_names():
-                cols[n] = []
-
-            n = agg.get_aggregation_node_name()
-            cols[n] = []
-
-        cols["result"] = []
-
-        return cols
 
 feat_expr = regex.compile(r"(?:[A-z]+-)([A-z]+)(?:-[A-z]+)")
 def get_feat(node: str) -> str:
@@ -119,14 +92,33 @@ def get_feat(node: str) -> str:
 class UnitPlate():
 
     unit: str
+    """Unit name
+    """
 
     features: list[Feature]
+    """List of features
+    """
 
     def __init__(self: UnitPlate, unit: str, features: list[Feature]) -> None:
+        """Create new unit plate.
+
+        Args:
+            self (UnitPlate): Self
+            unit (str): Name of unit
+            features (list[Feature]): List features
+        """
         self.unit = unit
         self.features = features
 
     def get_node_names(self: UnitPlate) -> list[str]:
+        """Get node names generated by this plate.
+
+        Args:
+            self (UnitPlate): Self
+
+        Returns:
+            list[str]: List node names
+        """
         names = []
 
         names.append(f"{self.unit}-count-player_A")
@@ -142,6 +134,14 @@ class UnitPlate():
         return names
 
     def get_edges(self: UnitPlate) -> list[str]:
+        """Get edges generated by this plate
+
+        Args:
+            self (UnitPlate): Self
+
+        Returns:
+            list[str]: List edges
+        """
         edges = []
 
         expr = regex.compile(r"[A-z]+-player_[AB]")
@@ -152,30 +152,59 @@ class UnitPlate():
 
         return edges
 
-    def decompose_name(name: str) -> list[str, str, str]:
+    def decompose_name(name: str) -> list[str]:
+        """Decompose names into parts
+
+        Args:
+            name (str): Self
+
+        Returns:
+            list[str]: List parts
+        """
         return name.split("-")
 
 class AggregationPlate():
 
     feature: Feature
+    """Feature model by this plate
+    """
 
     def __init__(self: AggregationPlate, feature: Feature) -> None:
+        """Create new aggregation plate
+
+        Args:
+            self (AggregationPlate): Self
+            feature (Feature): Feature
+        """
         self.feature = feature
 
     def get_node_names(self: AggregationPlate) -> list[str]:
+        """Get node names generated by this plate.
+
+        Args:
+            self (AggregationPlate): Self
+
+        Returns:
+            list[str]: List node names
+        """
         feat_off, feat_def = self.feature
         return [
             f"agg-{feat_off}-player_A",
             f"agg-{feat_def}-player_A",
             f"agg-{feat_off}-player_B",
-            f"agg-{feat_def}-player_B"
+            f"agg-{feat_def}-player_B",
+            f"agg-{feat_off}-{feat_def}"
         ]
 
-    def get_aggregation_node_name(self: UnitPlate) -> str:
-        feat_off, feat_def = self.feature
-        return f"agg-{feat_off}-{feat_def}"
+    def get_edges(self: AggregationPlate) -> list[Edge]:
+        """Get edges generated by this plate.
 
-    def get_edges(self: AggregationPlate) -> str:
+        Args:
+            self (AggregationPlate): Self
+
+        Returns:
+            str: List edges
+        """
         edges = []
 
         feat_off, feat_def = self.feature
@@ -187,5 +216,219 @@ class AggregationPlate():
 
         return edges
 
-    def decompose_name(name: str) -> list[str, str]:
+    def decompose_name(name: str) -> list[str]:
+        """Decompose node name into parts
+
+        Args:
+            name (str): Self
+
+        Returns:
+            list[str]: List parts
+        """
         return name.split("-")[1:]
+
+class Data:
+    unit_plates: list[UnitPlate]
+    """Unit plates
+    """
+
+    agg_plates: list[AggregationPlate]
+    """Aggregation plates
+    """
+
+    data: dict[Column, list]
+    """Internal data set
+    """
+
+    edges: list[Edge]
+    """Edges creates from data
+    """
+
+    unit_ptr: str | None
+    """Unit pointer - internal context
+    """
+    feat_off_ptr: str | None
+    """Offensive feature pointer - internal context
+    """
+    feat_def_ptr: str | None
+    """Defensive feature pointer - internal context
+    """
+
+    def __init__(self: Data, unit_plates: list[UnitPlate], agg_plates: [AggregationPlate]) -> None:
+        """Create new data set.
+
+        Args:
+            self (Data): Self
+            unit_plates (list[UnitPlate]): Unit plates
+            agg_plates (AggregationPlate]): Aggregate plates
+        """
+        self.unit_plates = unit_plates
+        self.agg_plates  = agg_plates
+
+        plates: list[UnitPlate | AggregationPlate] = [*self.unit_plates, *self.agg_plates]
+
+        self.data  = {name: [] for plate in plates for name in plate.get_node_names()}
+        self.data['result'] = []
+
+        self.edges = [edge for plate in plates for edge in plate.get_edges()]
+
+        self.continuos_columns = list(filter(lambda col: col.startswith("agg"), self.data.keys()))
+        self.continuos_columns.append("result")
+
+        self.unit_ptr = None
+        self.feat_off_ptr = None
+        self.feat_def_ptr = None
+
+    def get_raw_data(self: Data) -> dict[Column, list]:
+        return self.data
+
+    def get_edges(self: Data) -> list[Edge]:
+        return self.edges
+
+    def get_continuos_columns(self: Data) -> list[Column]:
+        return self.continuos_columns
+
+    def units(self: Data) -> Generator[str, None, None]:
+        """Generator of all units in data set.
+
+        Args:
+            self (Data): Self
+
+        Yields:
+            Generator[str, None, None]: Units
+        """
+        for plate in self.unit_plates:
+            with self.unit(plate.unit):
+                yield plate.unit
+
+    def features(self: Data) -> Generator[Feature, None, None]:
+        """Generator of all features on data set.
+
+        Args:
+            self (Data): Self
+
+        Yields:
+            Generator[Feature, None, None]: Features
+        """
+        for plate in self.agg_plates:
+            with self.feature(plate.feature):
+                yield plate.feature
+
+    @contextmanager
+    def unit(self: Data, unit_name: str) -> Generator[str, None, None]:
+        """Unit context manager
+
+        Args:
+            self (Data): Self
+            unit_name (str): Unit name
+
+        Yields:
+            Generator[str, None, None]: Not used
+        """
+        try:
+            self.unit_ptr = unit_name
+            yield self.unit_ptr
+        finally:
+            self.unit_ptr = None
+
+    @contextmanager
+    def feature(self: Data, feature: Feature) -> Generator[Feature, None, None]:
+        """Feature context manager
+
+        Args:
+            self (Data): Self
+            feature (Feature): Feature
+
+        Yields:
+            Generator[Feature, None, None]: Not used
+        """
+        try:
+            self.feat_off_ptr = feature[0]
+            self.feat_def_ptr = feature[1]
+            yield (self.feat_off_ptr, self.feat_def_ptr)
+        finally:
+            self.compute_aggregate()
+            self.feat_off_ptr = None
+            self.feat_def_ptr = None
+
+    def add_unit_count(self: Data, value_a: int, value_b: int) -> None:
+        """Add unit count
+
+        Args:
+            self (Data): Self
+            value_a (int): Count player A
+            value_b (int): Count player B
+        """
+        self.data[f"{self.unit_ptr}-count-player_A"].append(value_a)
+        self.data[f"{self.unit_ptr}-count-player_B"].append(value_b)
+
+    def add_unit_off(self: Data, value: float) -> None:
+        """Add unit offensive attribute
+
+        Args:
+            self (Data): Self
+            value (float): Value
+        """
+        self.data[f"{self.unit_ptr}-{self.feat_off_ptr}-player_A"].append(value)
+        self.data[f"{self.unit_ptr}-{self.feat_off_ptr}-player_B"].append(value)
+
+    def add_unit_def(self: Data, value) -> None:
+        """Add unit defensive attribute
+
+        Args:
+            self (Data): Self
+            value (_type_): Value
+        """
+        self.data[f"{self.unit_ptr}-{self.feat_def_ptr}-player_A"].append(value)
+        self.data[f"{self.unit_ptr}-{self.feat_def_ptr}-player_B"].append(value)
+
+    def add_match_result(self: Data, result: float) -> None:
+        """Add match result
+
+        Args:
+            self (Data): Self
+            result (float): Result
+        """
+        self.data["result"].append(result)
+
+    def compute_aggregate(self: Data) -> None:
+        """Compute aggregate nodes
+
+        Args:
+            self (Data): Self
+        """
+        # Aggregate node names
+        agg_off_a = f"agg-{self.feat_off_ptr}-player_A"
+        agg_off_b = f"agg-{self.feat_off_ptr}-player_B"
+
+        agg_def_a = f"agg-{self.feat_def_ptr}-player_A"
+        agg_def_b = f"agg-{self.feat_def_ptr}-player_B"
+
+        self.data[agg_off_a].append(0.0)
+        self.data[agg_def_a].append(0.0)
+        self.data[agg_off_b].append(0.0)
+        self.data[agg_def_b].append(0.0)
+        for plate in self.unit_plates:
+            unit = plate.unit
+
+            # A
+            count   = self.data[f"{unit}-count-player_A"][-1]
+            val_off = self.data[f"{unit}-{self.feat_off_ptr}-player_A"][-1]
+            val_def = self.data[f"{unit}-{self.feat_def_ptr}-player_A"][-1]
+            self.data[agg_off_a][-1] += count * val_off
+            self.data[agg_def_a][-1] += count * val_def
+
+            # B
+            count   = self.data[f"{unit}-count-player_B"][-1]
+            val_off = self.data[f"{unit}-{self.feat_off_ptr}-player_B"][-1]
+            val_def = self.data[f"{unit}-{self.feat_def_ptr}-player_B"][-1]
+            self.data[agg_off_b][-1] += count * val_off
+            self.data[agg_def_b][-1] += count * val_def
+
+        a, b, c, d = \
+                    self.data[agg_off_a][-1], \
+                    self.data[agg_def_a][-1], \
+                    self.data[agg_off_b][-1], \
+                    self.data[agg_def_b][-1]
+
+        self.data[f"agg-{self.feat_off_ptr}-{self.feat_def_ptr}"].append((a-d) / (c-b))
