@@ -25,7 +25,7 @@ class Result:
 
     def get_b(self, unit_name: str) -> int:
         unit_id = tid.id_of(unit_name)
-        return self.units_a[unit_id] if unit_id in self.units_a else 0
+        return self.units_b[unit_id] if unit_id in self.units_b else 0
 
 def parse() -> list[Result]:
     """Parse all json files in /data

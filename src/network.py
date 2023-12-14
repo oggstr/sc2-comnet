@@ -26,15 +26,46 @@ class Network():
     "List continuous columns"
 
     def __init__(self: Network) -> None:
+        """Create a new Network.
+
+        Args:
+            self (Network): Self
+        """
         self.units = []
         self.features = []
         self.continuous_columns = []
 
     def add_unit(self: Network, unit_name: str) -> Network:
+        """Add unit modeled by the network.
+
+        Args:
+            self (Network): Self
+            unit_name (str): Unit name
+
+        Returns:
+            Network: Self
+        """
         self.units.append(tid.id_of(unit_name))
         return self
 
     def add_feature(self: Network, offensive: str, defensive: str) -> Network:
+        """Add feature to network.
+
+        A feature is a unit attribute tuple. For example,
+        damage and hp.
+
+        Args:
+            self (Network): Self
+            offensive (str): Offensive feature
+            defensive (str): Defensive feature
+
+        Raises:
+            Exception: On non-existent offensive attribute
+            Exception: On non-existent defensive attribute
+
+        Returns:
+            Network: Self
+        """
         if not attr.exists(offensive):
             raise Exception(f"Offensive attribute {offensive} does not exist")
 
@@ -85,9 +116,6 @@ class Network():
 
         return (unit_plates, agg_plates)
 
-feat_expr = regex.compile(r"(?:[A-z]+-)([A-z]+)(?:-[A-z]+)")
-def get_feat(node: str) -> str:
-    return feat_expr.findall(node)[0]
 
 class UnitPlate():
 
@@ -142,13 +170,33 @@ class UnitPlate():
         Returns:
             list[str]: List edges
         """
-        edges = []
 
         expr = regex.compile(r"[A-z]+-player_[AB]")
-        for name in self.get_node_names():
-            res = expr.findall(name)
-            edge = (name, f"agg-{res[0]}")
-            edges.append(edge)
+        nodes = self.get_node_names()
+        agg_nodes = []
+        for node in nodes:
+            # count nodes do not have separate aggregation node,
+            # but should instead feed to all agg nodes.
+            if "count" in node:
+                continue
+
+            res = expr.findall(node)[0]
+            agg_node = f"agg-{res}"
+
+            # Already created agg node for this feature
+            if agg_node in agg_nodes:
+                continue
+
+            agg_nodes.append(agg_node)
+
+        edges = []
+        for node in filter(lambda n: n.endswith("player_A"), nodes):
+            for agg_node in filter(lambda n: n.endswith("player_A"), agg_nodes):
+                edges.append((node, agg_node))
+
+        for node in filter(lambda n: n.endswith("player_B"), nodes):
+            for agg_node in filter(lambda n: n.endswith("player_B"), agg_nodes):
+                edges.append((node, agg_node))
 
         return edges
 
@@ -209,7 +257,7 @@ class AggregationPlate():
 
         feat_off, feat_def = self.feature
         agg_node = f"agg-{feat_off}-{feat_def}"
-        for name in self.get_node_names():
+        for name in self.get_node_names()[:-1]:
             edges.append((name, agg_node))
 
         edges.append((agg_node, "result"))
@@ -273,7 +321,7 @@ class Data:
         self.edges = [edge for plate in plates for edge in plate.get_edges()]
 
         self.continuos_columns = list(filter(lambda col: col.startswith("agg"), self.data.keys()))
-        self.continuos_columns.append("result")
+        #self.continuos_columns.append("result")
 
         self.unit_ptr = None
         self.feat_off_ptr = None
