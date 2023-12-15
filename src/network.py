@@ -22,9 +22,6 @@ class Network():
     features: list[Feature]
     "list unit features"
 
-    continuous_columns: list[str]
-    "List continuous columns"
-
     def __init__(self: Network) -> None:
         """Create a new Network.
 
@@ -33,7 +30,6 @@ class Network():
         """
         self.units = []
         self.features = []
-        self.continuous_columns = []
 
     def add_unit(self: Network, unit_name: str) -> Network:
         """Add unit modeled by the network.
@@ -74,6 +70,28 @@ class Network():
 
         self.features.append((offensive, defensive))
         return self
+
+    def get_units(self: Network) -> list[str]:
+        """Get units modeled by network
+
+        Args:
+            self (Network): Self
+
+        Returns:
+            list[str]: Unit names
+        """
+        return self.units
+
+    def get_features(self: Network) -> list[tuple[str, str]]:
+        """Get features modeled by network
+
+        Args:
+            self (Network): Self
+
+        Returns:
+            list[tuple[str, str]]: Features
+        """
+        return self.features
 
     def make_network(self: Network) -> tuple[DataFrame, list[Edge], list[Column]]:
         """Create the network.
