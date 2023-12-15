@@ -338,7 +338,7 @@ class Data:
 
         self.edges = [edge for plate in plates for edge in plate.get_edges()]
 
-        self.continuos_columns = list(filter(lambda col: col.startswith("agg"), self.data.keys()))
+        self.continuos_columns = list(filter(lambda col: col.startswith("agg") or "count" in col, self.data.keys()))
         #self.continuos_columns.append("result")
 
         self.unit_ptr = None
