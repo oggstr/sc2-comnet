@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 from typing import Literal
 from dataclasses import dataclass
 
 import os
 import json
+from functools import reduce
 from pathlib import Path
 
 import unit.type_id as tid
@@ -17,7 +20,7 @@ class Result:
     """
     units_a: dict[int, int]
     units_b: dict[int, int]
-    win: Literal[0, 1]
+    win: float
 
     def get_a(self, unit_name: str) -> int:
         unit_id = tid.id_of(unit_name)
@@ -73,16 +76,11 @@ def result(content: dict) -> Result:
     for unit in player_b:
         units_b[unit["UID"]] = unit["QTY"]
 
-    res = content["items"][0]["result"]
-    if res == "p1_win":
-        win = PLAYER_A
-    if res == "p2_win":
-        win = PLAYER_B
+    #res = content["items"][0]["result"]
+    res = list(map(lambda item: 1.0 if item["result"] == "p1_win" else 0.0, content["items"]))
+    res = reduce(lambda a, b: a + b, res) / len(res)
 
-    if win is None:
-        raise Exception("Bad match resulted in tie")
-
-    return Result(units_a, units_b, win)
+    return Result(units_a, units_b, res)
 
 if __name__ == "__main__":
     # Test

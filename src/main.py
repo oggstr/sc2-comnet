@@ -9,6 +9,8 @@ def produce_model() -> None:
 
     net.add_unit("Marine")
     net.add_unit("Reaper")
+    net.add_unit("Marauder")
+    net.add_unit("SiegeTank")
 
     net.add_feature("dmg", "hp")
 

@@ -56,3 +56,11 @@ __add_attr(id.Marine, "hp", 45)
 __add_unit(id.Reaper)
 __add_attr(id.Reaper, "dmg", 10.1)
 __add_attr(id.Reaper, "hp", 60)
+
+__add_unit(id.Marauder)
+__add_attr(id.Marauder, "dmg", 9.3)
+__add_attr(id.Marauder, "hp", 125)
+
+__add_unit(id.SiegeTank)
+__add_attr(id.SiegeTank, "dmg", 19.0) # Value between sieged and unsieged states
+__add_attr(id.SiegeTank, "hp", 175)
