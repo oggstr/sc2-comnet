@@ -20,7 +20,7 @@ class Result:
     """
     units_a: dict[int, int]
     units_b: dict[int, int]
-    win: float
+    win: int
 
     def get_a(self, unit_name: str) -> int:
         unit_id = tid.id_of(unit_name)
@@ -68,7 +68,6 @@ def result(content: dict) -> Result:
 
     units_a = {}
     units_b = {}
-    win = None
 
     for unit in player_a:
         units_a[unit["UID"]] = unit["QTY"]
@@ -76,9 +75,8 @@ def result(content: dict) -> Result:
     for unit in player_b:
         units_b[unit["UID"]] = unit["QTY"]
 
-    #res = content["items"][0]["result"]
     res = list(map(lambda item: 1.0 if item["result"] == "p1_win" else 0.0, content["items"]))
-    res = reduce(lambda a, b: a + b, res) / len(res)
+    res = round(reduce(lambda a, b: a + b, res) / len(res))
 
     return Result(units_a, units_b, res)
 
