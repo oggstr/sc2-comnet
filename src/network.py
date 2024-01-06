@@ -80,7 +80,7 @@ class Network():
         Returns:
             list[str]: Unit names
         """
-        return self.units
+        return list(map(lambda unit_id: tid.name_of(unit_id), self.units))
 
     def get_features(self: Network) -> list[tuple[str, str]]:
         """Get features modeled by network

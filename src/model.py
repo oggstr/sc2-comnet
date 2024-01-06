@@ -12,12 +12,23 @@ from pgmpy.models import BayesianNetwork
 from pgmpy.factors.discrete.CPD import TabularCPD
 
 class Model():
+    """
+    Wrapper object for bnlearn network.
+
+    Abstracts away the specifics of how to query
+    the network such that it can be used more easily.
+
+    The underlying network uses discretization, so this
+    object takes care of mapping values to ranges.
+    For example, a unit count of 5 Marines may get mapped to
+    a range of [4, 11].
+    """
 
     dag: dict
     """bnlearn dag object
     """
 
-    units: list[str]
+    units: set[str]
     """Modeled units
     """
 
@@ -33,6 +44,10 @@ class Model():
     """Evidence set before prediction
     """
 
+    evidence_nodes: set[str]
+    """Evidence node names (count nodes)
+    """
+
     def __init__(self: Model, dag: dict, modeled_units: list[str], modeled_attrs: list[tuple[str, str]]):
         """Create new model wrapper
 
@@ -42,11 +57,16 @@ class Model():
             modeled_units (list[str]): Modeled units
             modeled_attrs (list[tuple[str, str]]): Modeled unit attributes
         """
-        self.dag          = dag
-        self.units        = modeled_units
-        self.units_attrs  = [a for pair in modeled_attrs for a in pair]
-        self.valid_counts = {}
-        self.evidence     = {}
+        self.dag              = dag
+        self.units            = set(modeled_units)
+        self.units_attrs      = [a for pair in modeled_attrs for a in pair]
+        self.valid_counts     = {}
+        self.evidence         = {}
+        self.evidence_nodes   = set()
+
+        for unit in self.units:
+            self.evidence_nodes.add(f"{unit}-count-player_A")
+            self.evidence_nodes.add(f"{unit}-count-player_B")
 
         self.__steal_valid_values()
 
@@ -66,7 +86,7 @@ class Model():
 
             # Inputs to this model will only ever be unit counts,
             # so skip any non-count nodes.
-            if not "count" in node_name:
+            if "count" not in node_name:
                 continue
 
             # Hack-deluxe way of attaining valid values
@@ -74,12 +94,22 @@ class Model():
             values = cpd.name_to_no[node_name].keys()
             self.valid_counts[node_name] = list(values)
 
-    def save(self: Model) -> bool:
+    def save(self: Model) -> None:
+        """Save self as .pkl file.
+
+        Args:
+            self (Model): Self
+        """
         with open("sc2_combat_model.pkl", "wb") as file:
             pickle.dump(self, file)
 
     @staticmethod
     def load() -> Model:
+        """Load the model from stored .pkl file.
+
+        Returns:
+            Model: Model
+        """
         with open("sc2_combat_model.pkl", "rb") as file:
             return pickle.load(file)
 
@@ -96,6 +126,7 @@ class Model():
         try:
             yield
         finally:
+            # Rest evidence for next predictions
             self.evidence = {}
 
     def use_unit_count(self: Model, player: int, unit: str, count: int) -> None:
@@ -109,28 +140,54 @@ class Model():
         """
         node = f"{unit}-count-player_{'A' if player == 0 else 'B'}"
 
-        if not node in self.valid_counts:
+        if node not in self.valid_counts:
             print(f"Warning: Unit {unit} not supported by model")
             return
 
-        # Find closest value to given count
-        values = self.valid_counts[node]
-        value  = min(values, key = lambda val: abs(val-count))
+        self.__use_node_count(node, count)
 
-        self.evidence[node] = value
+    def __use_node_count(self: Model, node: str, count: int) -> None:
+        """Internal function sets a count value for some node.
+        This function maps count to some value range.
 
-    def make_prediction(self: Model) -> float:
+        Args:
+            self (Model): Self
+            node (str): Node name
+            count (int): Count value
+        """
+        value_ranges = self.valid_counts[node]
+
+        # Find what range count is in
+        for value_range in value_ranges:
+            if count not in value_range:
+                continue
+
+            self.evidence[node] = value_range
+            return
+
+        # Backup, find closest value to given count
+        value_ranges = sorted(value_ranges, key = lambda val_range: abs(val_range.mid - count))
+        self.evidence[node] = value_ranges[0]
+
+    def make_prediction(self: Model, player: int) -> float:
         """Make prediction
 
         Args:
             self (Model): Self
+            player (int): Player (0 or 1)
 
         Returns:
             float: prediction player 0 wins
         """
-        q = bn.inference.fit(self.dag, variables=["result"], evidence=self.evidence)
+
+        # Any count values not already set, are set to 0
+        nodes = self.evidence_nodes.difference(set(self.evidence.keys()))
+        for node in nodes:
+            self.__use_node_count(node, 0)
+
+        q = bn.inference.fit(self.dag, variables=["result"], evidence=self.evidence, verbose=0)
         try:
-            return q.df["r"][0]
+            return q.df["p"][player]
         except Exception as e:
-            print("Failed to make prediction")
+            print(f"Failed to make prediction: {e}")
             return 0.0
