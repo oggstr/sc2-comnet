@@ -28,9 +28,7 @@ def make_prediction(model: Model, unit_setup: list[dict[str, int]]) -> None:
     """
     print("-------- Prediction --------")
     with model.prediction():
-        print("Prediction setup...", end="")
         set_unit_counts(model, unit_setup)
-        print("done")
 
         print("Making prediction...", end="")
         p0, t0 = process_time(), time()
