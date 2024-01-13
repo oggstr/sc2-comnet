@@ -1,4 +1,4 @@
-# TDDD92 - Förutspå Stridsutfall med Bayesianska Nätverk
+# TDDD92 - Predicting Combat Outcomes in SC2 using Bayesian Networks
 
 Note, README is available in Swedish bellow!
 <br/>
