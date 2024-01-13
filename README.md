@@ -1,6 +1,6 @@
 # TDDD92 - Predicting Combat Outcomes in SC2 using Bayesian Networks
 
-Note, README is available in Swedish bellow!
+Note, README is available in Swedish below!
 <br/>
 This project builds a bayesian network that, given the units of two players, predicts the chance of a player winning a fight.
 
