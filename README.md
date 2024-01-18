@@ -15,7 +15,7 @@ The project is split in three parts:
 ### Building & Training
 Both building and training can be found in `train.py`. The code begins by registering what units and what attributes to model. This is registered in `Network` (`netowrk.py`).
 
-`Network` has two main responsibilities. First, it builds and adges and nodes in the network. Second, it parses all the data (using `/data/parse.py`) and computes derived data. This, and what nodes are continuous nodes, are returned to `train.py`.
+`Network` has two main responsibilities. First, it builds the nodes and edges of the network. Second, it parses all the data (using `/data/parse.py`) and computes derived data. This, and what nodes are continuous nodes, are returned to `train.py`.
 
 After, `bnlearn` is used for training. It first discretizes all continuous nodes values. Then it trains the network using `MLE`.
 
